@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -38,7 +39,9 @@ public class Map : MonoBehaviour
         CreateRooms(map);
 
         Mazify();
-        RoomEntrances();
+        HighlightRoomEntrances();
+        VisitPathsCoroutine();
+        // VisitPaths();
     }
 
     private void InitiateTiles()
@@ -140,22 +143,21 @@ public class Map : MonoBehaviour
 
         tile.ConvertTileToPath();
 
-        MazeRec(pos_x, pos_y, -1);
+        MazeRec(pos_x, pos_y, Direction.None);
     }
 
-    private void MazeRec(int pos_x, int pos_y, int previous_dir)
+    private void MazeRec(int pos_x, int pos_y, Direction previous_dir)
     {
         int first_direction = Random.Range(0, 4);
 
         for (int i = 0; i < 4; i++)
         {
             int next_dir = (first_direction + i) % 4;
-            if ((next_dir + 2) % 4 != previous_dir || previous_dir == -1)
+            if ((next_dir + 2) % 4 != (int) previous_dir || previous_dir == Direction.None)
             {
                 switch (next_dir)
                 {
                     case 0:
-                        //Debug.Log(pos_x.ToString() + " " + pos_y.ToString() + " East");
                         Tile eastTile = EastTile(pos_x, pos_y);
 
                         if (eastTile.TileType != TileType.None) break;
@@ -167,12 +169,11 @@ public class Map : MonoBehaviour
                         }
 
                         eastTile.ConvertTileToPath();
-                        MazeRec(pos_x + 1, pos_y, 0);
+                        MazeRec(pos_x + 1, pos_y, Direction.East);
                         
                         break;
 
                     case 1:
-                        //Debug.Log(pos_x.ToString() + " " + pos_y.ToString() + " South");
                         Tile southTile = SouthTile(pos_x, pos_y);
 
                         if (southTile.TileType != TileType.None) break;
@@ -184,12 +185,11 @@ public class Map : MonoBehaviour
                         }
 
                         southTile.ConvertTileToPath();
-                        MazeRec(pos_x, pos_y - 1, 1);
+                        MazeRec(pos_x, pos_y - 1, Direction.South);
                         
                         break;
 
                     case 2:
-                        //Debug.Log(pos_x.ToString() + " " + pos_y.ToString() + " West");
                         Tile westTile = WestTile(pos_x, pos_y);
                         
                         if (westTile.TileType != TileType.None) break;
@@ -201,7 +201,7 @@ public class Map : MonoBehaviour
                         }
 
                         westTile.ConvertTileToPath();
-                        MazeRec(pos_x - 1, pos_y, 2);
+                        MazeRec(pos_x - 1, pos_y, Direction.West);
                         
                         break;
 
@@ -218,7 +218,7 @@ public class Map : MonoBehaviour
                         }
 
                         northTile.ConvertTileToPath();
-                        MazeRec(pos_x, pos_y + 1, 3);
+                        MazeRec(pos_x, pos_y + 1, Direction.North);
                         
                         break;
                 }
@@ -277,7 +277,7 @@ public class Map : MonoBehaviour
     {
         Container c = r.container;
 
-        for (int i = 0; i < c.w; i++)
+        for (int i = -1; i < c.w + 1; i++)
         {
             Tile northTile = tiles[c.x + i + 1][c.y + c.h + 1];
             if (northTile.TileType != TileType.Wall) northTile.ConvertTileToRoomSide();
@@ -296,40 +296,355 @@ public class Map : MonoBehaviour
         }
     }
 
-    private void RoomEntrances()
+    private void HighlightRoomEntrances()
     {
-        foreach(Room r in rooms)
+        foreach (Room r in rooms)
         {
             Container c = r.container;
 
             for (int i = 0; i < c.w; i++)
             {
                 Tile southTile = tiles[c.x + i + 1][c.y];
-                if (southTile.TileType == TileType.RoomSide && tiles[c.x + i + 1][c.y - 1].TileType == TileType.Path) r.southBorder.Add(southTile);
-                
+                if (southTile.TileType == TileType.RoomSide && tiles[c.x + i + 1][c.y - 1].TileType == TileType.Path)
+                    r.southBorder.Add(new Vector2(c.x + i + 1, c.y));
+
                 Tile northTile = tiles[c.x + i + 1][c.y + c.h + 1];
-                if (northTile.TileType == TileType.RoomSide && tiles[c.x + i + 1][c.y + c.h + 2].TileType == TileType.Path) r.northBorder.Add(northTile);
+                if (northTile.TileType == TileType.RoomSide && tiles[c.x + i + 1][c.y + c.h + 2].TileType == TileType.Path)
+                    r.northBorder.Add(new Vector2(c.x + i + 1, c.y + c.h + 1));
             }
 
             for (int j = 0; j < c.h; j++)
             {
                 Tile westTile = tiles[c.x][c.y + j + 1];
-                if (westTile.TileType == TileType.RoomSide && tiles[c.x - 1][c.y + j + 1].TileType == TileType.Path) r.westBorder.Add(westTile);
+                if (westTile.TileType == TileType.RoomSide && tiles[c.x - 1][c.y + j + 1].TileType == TileType.Path)
+                    r.westBorder.Add(new Vector2(c.x, c.y + j + 1));
 
                 Tile eastTile = tiles[c.x + c.w + 1][c.y + j + 1];
-                if (eastTile.TileType == TileType.RoomSide && tiles[c.x + c.w + 2][c.y + j + 1].TileType == TileType.Path) r.eastBorder.Add(eastTile);
+                if (eastTile.TileType == TileType.RoomSide && tiles[c.x + c.w + 2][c.y + j + 1].TileType == TileType.Path)
+                    r.eastBorder.Add(new Vector2(c.x + c.w + 1, c.y + j + 1));
             }
 
-            foreach (List<Tile> list in new List<List<Tile>> { r.southBorder, r.northBorder, r.westBorder, r.eastBorder })
+            int[] bordersLengths = { r.eastBorder.Count, r.southBorder.Count, r.westBorder.Count, r.northBorder.Count };
+            List<Vector2> chosen_paths = new();
+
+            for (int i = 0; i < 4; i++)
             {
-                int length = list.Count;
-                if (length > 0)
+                chosen_paths.Add(new Vector2(i, bordersLengths[i]));
+            }
+
+            // On garde seulement les frontières possédant au moins une tile liant la room au path
+            for (int i = 3; i >= 0; i--)
+            {
+                if (chosen_paths[i].y == 0) chosen_paths.RemoveAt(i);
+            }
+
+            int bordersLeft = chosen_paths.Count;
+            int pathChosen = 0;
+
+            for (int i = 0; i < bordersLeft; i++)
+            {
+                int rand = Random.Range(0, (int)chosen_paths[i].y);
+                bool goodPath = Random.Range(0, 2) == 0;
+                switch ((int) chosen_paths[i].x)
                 {
-                    int rand = Random.Range(0, length);
-                    list[rand].ConvertTileToEntrance();
+                    case 0:
+                        if (goodPath || (i == bordersLeft - 1 && pathChosen == 0))
+                        {
+                            tiles[(int) r.eastBorder[rand].x][(int) r.eastBorder[rand].y].ConvertTileToEntrance();
+                            tiles[(int) r.eastBorder[rand].x + 1][(int) r.eastBorder[rand].y].ConvertTileToTruePath();
+                            pathChosen++;
+                        }
+                        break;
+                    case 1:
+                        if (goodPath || (i == bordersLeft - 1 && pathChosen == 0))
+                        {
+                            tiles[(int) r.southBorder[rand].x][(int) r.southBorder[rand].y].ConvertTileToEntrance();
+                            tiles[(int) r.southBorder[rand].x][(int) r.southBorder[rand].y - 1].ConvertTileToTruePath();
+                            pathChosen++;
+                        }
+                        break;
+                    case 2:
+                        if (goodPath || (i == bordersLeft - 1 && pathChosen == 0))
+                        {
+                            tiles[(int) r.westBorder[rand].x][(int) r.westBorder[rand].y].ConvertTileToEntrance();
+                            tiles[(int) r.westBorder[rand].x - 1][(int) r.westBorder[rand].y].ConvertTileToTruePath();
+                            pathChosen++;
+                        }
+                        break;
+                    case 3:
+                        if (goodPath || (i == bordersLeft - 1 && pathChosen == 0))
+                        {
+                            tiles[(int) r.northBorder[rand].x][(int) r.northBorder[rand].y].ConvertTileToEntrance();
+                            tiles[(int) r.northBorder[rand].x][(int) r.northBorder[rand].y + 1].ConvertTileToTruePath();
+                            pathChosen++;
+                        }
+                        break;
                 }
             }
         }
+    }
+
+    private Vector2 FindRoomEntrance()
+    {
+        for (int i = 1; i < mapWidth + 2 ; i++)
+        {
+            for (int j = 1; j < mapHeight + 2 ; j++)
+            {
+                if (tiles[i][j].TileType == TileType.RoomEntrance)
+                {
+                    return new Vector2(i, j);
+                }
+            }
+        }
+        return Vector2.zero;
+    }
+
+    private void VisitPaths()
+    {
+        Vector2 firstRoomEntrance = FindRoomEntrance();
+        int i = (int)firstRoomEntrance.x;
+        int j = (int)firstRoomEntrance.y;
+
+        if (IsHorizontalBorder(i, j))
+        {
+            if (tiles[i][j - 1].TileType == TileType.Room) VisitPathsRec(i, j + 1, Direction.North);
+            else VisitPathsRec(i, j - 1, Direction.South);
+        }
+        else if (IsVerticalBorder(i, j))
+        {
+            if (tiles[i + 1][j].TileType == TileType.Room) VisitPathsRec(i - 1, j, Direction.West);
+            else VisitPathsRec(i + 1, j, Direction.East);
+        }
+    }
+
+    private bool IsHorizontalBorder(int i, int j)
+    {
+        return ((tiles[i - 1][j].TileType == TileType.RoomSide && tiles[i + 1][j].TileType == TileType.RoomSide) ||
+            (tiles[i - 1][j].TileType == TileType.Wall && tiles[i + 1][j].TileType == TileType.RoomSide) ||
+            (tiles[i - 1][j].TileType == TileType.RoomSide && tiles[i + 1][j].TileType == TileType.Wall));
+    }
+
+    private bool IsVerticalBorder(int i, int j)
+    {
+        return ((tiles[i][j - 1].TileType == TileType.RoomSide && tiles[i][j + 1].TileType == TileType.RoomSide) ||
+            (tiles[i][j - 1].TileType == TileType.Wall && tiles[i][j + 1].TileType == TileType.RoomSide) ||
+            (tiles[i][j - 1].TileType == TileType.RoomSide && tiles[i][j + 1].TileType == TileType.Wall));
+    }
+
+    private bool VisitPathsRec(int i, int j, Direction previous_dir)
+    {
+        int goodPaths = 0;
+
+        if (previous_dir != Direction.West)
+        {
+            Tile eastTile = EastTile(i, j);
+            if (eastTile.TileType != TileType.VisitedPath)
+            {
+                if (eastTile.TileType == TileType.Path)
+                {
+                    eastTile.ConvertTileToVisitedPath();
+                    if (VisitPathsRec(i + 1, j, Direction.East)) goodPaths++;
+                }
+                else if (eastTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    VisitPathsRec(i + 1, j, Direction.East);
+                }
+                else if (eastTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        if (previous_dir != Direction.North)
+        {
+            Tile southTile = SouthTile(i, j);
+            if (southTile.TileType != TileType.VisitedPath)
+            {
+                if (southTile.TileType == TileType.Path)
+                {
+                    southTile.ConvertTileToVisitedPath();
+                    if (VisitPathsRec(i, j - 1, Direction.South)) goodPaths++;
+                }
+                else if (southTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    VisitPathsRec(i, j - 1, Direction.South);
+                }
+                else if (southTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        if (previous_dir != Direction.East)
+        {
+            Tile westTile = WestTile(i, j);
+            if (westTile.TileType != TileType.VisitedPath)
+            {
+                if (westTile.TileType == TileType.Path)
+                {
+                    westTile.ConvertTileToVisitedPath();
+                    if (VisitPathsRec(i - 1, j, Direction.West)) goodPaths++;
+                }
+                else if (westTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    VisitPathsRec(i - 1, j, Direction.West);
+                }
+                else if (westTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        if (previous_dir != Direction.South)
+        {
+            Tile northTile = NorthTile(i, j);
+            if (northTile.TileType != TileType.VisitedPath)
+            {
+                if (northTile.TileType == TileType.Path)
+                {
+                    northTile.ConvertTileToVisitedPath();
+                    if (VisitPathsRec(i, j + 1, Direction.North)) goodPaths++;
+                }
+                else if (northTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    VisitPathsRec(i, j + 1, Direction.North);
+                }
+                else if (northTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        if (goodPaths > 0) return true;
+        else
+        {
+            tiles[i][j].ConvertTileToNone();
+            return false;
+        }
+    }
+
+
+    void VisitPathsCoroutine()
+    {
+        Vector2 firstRoomEntrance = FindRoomEntrance();
+        int i = (int)firstRoomEntrance.x;
+        int j = (int)firstRoomEntrance.y;
+
+        if (IsHorizontalBorder(i, j))
+        {
+            if (tiles[i][j - 1].TileType == TileType.Room) 
+                StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { Debug.Log("Done"); } }, i, j + 1, Direction.North)); 
+            else
+                StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { Debug.Log("Done"); } }, i, j - 1, Direction.South));
+        }
+        else if (IsVerticalBorder(i, j))
+        {
+            if (tiles[i + 1][j].TileType == TileType.Room)
+                StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { Debug.Log("Done"); } }, i - 1, j, Direction.West));
+            else
+                StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { Debug.Log("Done"); } }, i + 1, j, Direction.East));
+        }
+    }
+
+    IEnumerator VisitPathsRecCoroutine(Action<bool> callback, int i, int j, Direction previous_dir)
+    {
+        int goodPaths = 0;
+
+        if (previous_dir != Direction.West)
+        {
+            Tile eastTile = EastTile(i, j);
+            if (eastTile.TileType != TileType.VisitedPath)
+            {
+                if (eastTile.TileType == TileType.Path)
+                {
+                    yield return new WaitForSeconds(.05f);
+                    eastTile.ConvertTileToVisitedPath();
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { goodPaths++; } }, i + 1, j, Direction.East));
+                }
+                else if (eastTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { }, i + 1, j, Direction.East));
+                }
+                else if (eastTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+            //else
+            //{
+            //    tiles[i][j].ConvertTileToNone();
+            //    callback(false);
+            //    yield break;
+            //}
+        }
+
+        if (previous_dir != Direction.North)
+        {
+            Tile southTile = SouthTile(i, j);
+            if (southTile.TileType != TileType.VisitedPath)
+            {
+                if (southTile.TileType == TileType.Path)
+                {
+                    yield return new WaitForSeconds(.05f);
+                    southTile.ConvertTileToVisitedPath();
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { goodPaths++; } }, i, j - 1, Direction.South));
+                }
+                else if (southTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { }, i, j - 1, Direction.South));
+                }
+                else if (southTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        if (previous_dir != Direction.East)
+        {
+            Tile westTile = WestTile(i, j);
+            if (westTile.TileType != TileType.VisitedPath)
+            {
+                if (westTile.TileType == TileType.Path)
+                {
+                    yield return new WaitForSeconds(.05f);
+                    westTile.ConvertTileToVisitedPath();
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { goodPaths++; } }, i - 1, j, Direction.West));
+
+                }
+                else if (westTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { }, i - 1, j, Direction.West));
+                }
+                else if (westTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        if (previous_dir != Direction.South)
+        {
+            Tile northTile = NorthTile(i, j);
+            if (northTile.TileType != TileType.VisitedPath)
+            {
+                if (northTile.TileType == TileType.Path)
+                {
+                    yield return new WaitForSeconds(.05f);
+                    northTile.ConvertTileToVisitedPath();
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { if (myReturnValue) { goodPaths++; } }, i, j + 1, Direction.North));
+                }
+                else if (northTile.TileType == TileType.TruePath)
+                {
+                    goodPaths++;
+                    yield return StartCoroutine(VisitPathsRecCoroutine((myReturnValue) => { }, i, j + 1, Direction.North));
+                }
+                else if (northTile.TileType == TileType.RoomEntrance) goodPaths++;
+            }
+        }
+
+        // Si on arrive sur un TruePath et qu'il a déjà un Visited à côté alors c'est pas bon
+
+        if (goodPaths > 0) callback(true);
+        else
+        {
+            yield return new WaitForSeconds(.05f);
+            tiles[i][j].ConvertTileToNone();
+            callback(false);
+        }
+        yield return null;
+        
     }
 
     /* UI */
@@ -500,67 +815,5 @@ public class Map : MonoBehaviour
 //            for (int i = p1.y; i < p2.y; i++) tiles[p1.x][i].ConvertTileToPath();
 //        else
 //            for (int i = p2.y; i < p1.y; i++) tiles[p1.x][i].ConvertTileToPath();
-//    }
-//}
-
-//private void LinkPoints(Point p1, Point p2)
-//{
-//    // RECURSIF, ON VA DE p1 et on finit à p2
-//    if (p1 != p2)
-//    {
-//        int hallWidth = p2.x - p1.x;
-//        int hallLength = p2.y - p1.y;
-//        int hallDirection = Math.Abs(hallWidth) - Math.Abs(hallLength);
-
-//        if (hallDirection > 0)
-//        {
-//            if (hallWidth > 0) LinkHorizontallyToEast(p1, p2);
-//            else if (hallWidth < 0) LinkHorizontallyToWest(p1, p2);
-//            else
-//            {
-//                if (Random.Range(0, 2) == 0) LinkHorizontallyToEast(p1, p2);
-//                else LinkHorizontallyToWest(p1, p2);
-//            }   
-//        }
-//        else if (hallDirection < 0) {
-//            if (hallLength > 0) LinkVerticallyToNorth(p1, p2);
-//            else if (hallLength < 0) LinkVerticallyToSouth(p1, p2); 
-//            else
-//            {
-//                if (Random.Range(0, 2) == 0) LinkHorizontallyToEast(p1, p2);
-//                else LinkHorizontallyToWest(p1, p2);
-//            }
-//        }
-//    }
-//}
-
-//private Tile NorthEastTile(Point p)
-//{
-//    try { return tiles[p.x + 1][p.y + 1]; }
-//    catch (IndexOutOfRangeException) { return null; }
-//}
-
-//private void LinkHorizontallyToEast(Point p1, Point p2)
-//{
-//    // The vertcial link is done
-//    if (p1.x == p2.x) LinkPoints(p1, p2);
-
-//    Tile eastTile = tiles[p1.x + 1][p1.y];
-//    if (eastTile.TileType == TileType.Room || eastTile.TileType == TileType.Path) LinkHorizontallyToEast(new Point(p1.x + 1, p1.y), p2);
-
-
-//    Tile northEastTile = NorthEastTile(p1);
-//    if (northEastTile != null) 
-//    { 
-//        if (northEastTile.TileType == TileType.Room )
-//        {
-
-//            ConvertTileToPath(tiles[p1.x][p1.y + 1]);
-//            LinkHorizontallyToEast(new Point(p1.x + 1, p1.y + 1), p2);
-//        }
-//        else if (eastTile.TileType == TileType.Path)
-//        {
-
-//        }
 //    }
 //}

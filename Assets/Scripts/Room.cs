@@ -1,34 +1,35 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 public class Room
 {
     public Container container;
 
-    public List<Tile> northBorder;
-    public List<Tile> eastBorder;
-    public List<Tile> southBorder;
-    public List<Tile> westBorder;
+    public List<Vector2> northBorder;
+    public List<Vector2> eastBorder;
+    public List<Vector2> southBorder;
+    public List<Vector2> westBorder;
 
     public Room()
     {
         container = new Container();
-        northBorder = new List<Tile>();
-        eastBorder = new List<Tile>();
-        southBorder = new List<Tile>();
-        westBorder = new List<Tile>();
+        northBorder = new List<Vector2>();
+        eastBorder = new List<Vector2>();
+        southBorder = new List<Vector2>();
+        westBorder = new List<Vector2>();
     }
 
     public Room(Container c)
     {
         container = c;
 
-        northBorder = new List<Tile>();
-        eastBorder = new List<Tile>();
-        southBorder = new List<Tile>();
-        westBorder = new List<Tile>();
+        northBorder = new List<Vector2>();
+        eastBorder = new List<Vector2>();
+        southBorder = new List<Vector2>();
+        westBorder = new List<Vector2>();
     }
 
-    public Room(Container c, List<Tile> nB, List<Tile> eB, List<Tile> sB, List<Tile> wB)
+    public Room(Container c, List<Vector2> nB, List<Vector2> eB, List<Vector2> sB, List<Vector2> wB)
     {
         container = c;
         northBorder = nB;
